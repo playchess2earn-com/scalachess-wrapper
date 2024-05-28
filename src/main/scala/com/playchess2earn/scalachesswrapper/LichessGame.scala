@@ -24,8 +24,8 @@ class LichessGame(private var game: Game):
 
   def getSans: java.util.List[String] =
     game.sans
-      .map: s =>
-        s.asInstanceOf[String]
+      .map:
+        _.asInstanceOf[String]
       .asJava
 
   def getStartedAtPly: Integer =
@@ -34,38 +34,39 @@ class LichessGame(private var game: Game):
   def getPieceAt(at: Integer): Optional[Character] =
     game.situation
       .board(at.asInstanceOf[Square])
-      .map: p =>
-        p.forsyth.asInstanceOf[Character]
+      .map:
+        _.forsyth.asInstanceOf[Character]
       .toJava
 
   def getLastMoveUci: Optional[String] =
     game.situation.board.history.lastMove
-      .map: m =>
-        m.uci
+      .map:
+        _.uci
       .toJava
 
   def getLastMoveSan: Optional[String] =
     game.sans.lastOption
-      .map: s =>
-        s.asInstanceOf[String]
+      .map:
+        _.asInstanceOf[String]
       .toJava
 
   def getLegalMoves: java.util.Map[String, java.util.List[String]] =
     game.situation.moves.map:
       case (square, moves) =>
-        square.key -> moves.map: m =>
-          m.dest.key
+        square.key -> moves.map:
+          _.dest.key
         .asJava
     .asJava
 
   def getLegalMovesUci: java.util.List[String] =
     game.situation.legalMoves
-      .map: m =>
-        m.toUci.uci
+      .map:
+        _.toUci.uci
       .asJava
 
   def isMoveLegal(from: Integer, to: Integer): java.lang.Boolean =
-    game.situation.legalMoves.exists(move => move.orig == from.asInstanceOf[Square] && move.dest == to.asInstanceOf[Square])
+    game.situation.legalMoves.exists: m =>
+      m.orig == from.asInstanceOf[Square] && m.dest == to.asInstanceOf[Square]
 
   def isMoveLegal(from: Integer, to: Integer, promotion: Character): java.lang.Boolean =
     val role = Role.promotable(promotion)
@@ -101,17 +102,17 @@ class LichessGame(private var game: Game):
 
   def undoMove(): Unit =
     if this.game.sans.nonEmpty then
-      val poppedSans = game.sans.init
+      val sans = game.sans.init
 
-      val (initialGame, steps, __) = Replay.gameMoveWhileValid(
-        poppedSans,
+      val (initialGame, steps, _) = Replay.gameMoveWhileValid(
+        sans,
         game.situation.variant.initialFen,
         game.situation.variant
       )
 
       game = steps.lastOption
-        .map: step =>
-          step._1
+        .map:
+          _._1
         .getOrElse(initialGame)
 
   def isAutoDraw: java.lang.Boolean =
@@ -130,14 +131,14 @@ class LichessGame(private var game: Game):
     game.situation.staleMate
 
   def winner: Optional[String] =
-    game.situation.winner.map: w =>
-      w.name
+    game.situation.winner.map:
+      _.name
     .toJava
 
   def checkSquare: Optional[Integer] =
     game.situation.checkSquare
-      .map: s =>
-        s.asInstanceOf[Integer]
+      .map:
+        _.asInstanceOf[Integer]
       .toJava
 
 object LichessGame:
@@ -151,8 +152,8 @@ object LichessGame:
 
     val game = Fen
       .read(realVariant, fen)
-      .map: sit =>
-        sit.color -> sit.withVariant(realVariant).board
+      .map: s =>
+        s.color -> s.withVariant(realVariant).board
       .map: (color, board) =>
         Game(realVariant).copy(situation = Situation(board, color))
       .getOrElse(throw RuntimeException("Can't create game"))
@@ -160,17 +161,17 @@ object LichessGame:
     LichessGame(game)
 
   def create(
-              variant: String,
-              sans: java.util.List[String],
-              ply: Integer = 0,
-              startedAtPly: Integer = 0
-            ): LichessGame =
+    variant: String,
+    sans: java.util.List[String],
+    ply: Integer = 0,
+    startedAtPly: Integer = 0
+  ): LichessGame =
     val realVariant = Variant.byName(variant).getOrElse(throw RuntimeException("No such variant"))
 
     val game = Game(
       Situation(realVariant),
-      sans.asScala.toVector.map: s =>
-        s.asInstanceOf[SanStr],
+      sans.asScala.toVector.map:
+        _.asInstanceOf[SanStr],
       None,
       ply.asInstanceOf[Ply],
       startedAtPly.asInstanceOf[Ply]
@@ -179,28 +180,28 @@ object LichessGame:
     LichessGame(game)
 
   def create(
-              variant: String,
-              sans: java.util.List[String]
-            ): LichessGame =
+    variant: String,
+    sans: java.util.List[String]
+  ): LichessGame =
     val realVariant = Variant.byName(variant).getOrElse(throw RuntimeException("No such variant"))
 
     val (game, steps, __) = Replay.gameMoveWhileValid(
-      sans.asScala.toVector.map: s =>
-        s.asInstanceOf[SanStr],
+      sans.asScala.toVector.map:
+        _.asInstanceOf[SanStr],
       realVariant.initialFen,
       realVariant
     )
 
     LichessGame(
       steps.lastOption
-        .map: step =>
-          step._1
+        .map:
+          _._1
         .getOrElse(game)
     )
 
   def getSquareFromKey(key: String): OptionalInt =
     Square
       .fromKey(key)
-      .map: s =>
-        s.asInstanceOf[Int]
+      .map:
+        _.asInstanceOf[Int]
       .toJavaPrimitive
