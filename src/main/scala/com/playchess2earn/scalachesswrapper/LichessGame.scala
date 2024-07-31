@@ -5,7 +5,8 @@ import chess.format.{Fen, FullFen}
 import chess.variant.Variant
 import chess.{Game, Ply, Replay, Role, Situation, Square}
 
-import java.util.{Optional, OptionalInt}
+import java.util
+import java.util.{ArrayList, Optional, OptionalInt}
 import scala.jdk.CollectionConverters.*
 import scala.jdk.OptionConverters.*
 
@@ -23,10 +24,10 @@ class LichessGame(private var game: Game):
     Fen.write(game).asInstanceOf[String]
 
   def getSans: java.util.List[String] =
-    game.sans
+    util.ArrayList(game.sans
       .map:
         _.asInstanceOf[String]
-      .asJava
+      .asJava)
 
   def getStartedAtPly: Integer =
     game.startedAtPly.asInstanceOf[Integer]
@@ -53,16 +54,16 @@ class LichessGame(private var game: Game):
   def getLegalMoves: java.util.Map[String, java.util.List[String]] =
     game.situation.moves.map:
       case (square, moves) =>
-        square.key -> moves.map:
+        square.key -> util.ArrayList(moves.map:
           _.dest.key
-        .asJava
+        .asJava)
     .asJava
 
   def getLegalMovesUci: java.util.List[String] =
-    game.situation.legalMoves
+    util.ArrayList(game.situation.legalMoves
       .map:
         _.toUci.uci
-      .asJava
+      .asJava)
 
   def isMoveLegal(from: Integer, to: Integer): java.lang.Boolean =
     game.situation.legalMoves.exists: m =>
