@@ -1,5 +1,5 @@
-lazy val scalalib = ProjectRef(uri("git://github.com/lichess-org/scalalib.git#2d3b578"), "core")
-lazy val scalachess = ProjectRef(uri("git://github.com/lichess-org/scalachess.git#dfbb10c"), "scalachess")
+lazy val scalalib = ProjectRef(uri("https://github.com/lichess-org/scalalib.git#fb570ef"), "core")
+lazy val scalachess = ProjectRef(uri("https://github.com/lichess-org/scalachess.git#f11e189"), "scalachess")
 lazy val publishScalalib = taskKey[Unit]("Publish scalalib dependency to local Maven repository")
 lazy val publishScalachess = taskKey[Unit]("Publish scalachess dependency to local Maven repository")
 
@@ -34,7 +34,7 @@ lazy val scalachessWrapper = project.in(file("."))
     name := "scalachess-wrapper",
     organization := "com.playchess2earn",
     version := "0.0.1",
-    scalaVersion := "3.4.1",
+    scalaVersion := "3.8.3",
     licenses += ("MIT" -> url("https://opensource.org/licenses/MIT")),
     semanticdbEnabled := true,
     Compile / packageDoc / publishArtifact := false,
@@ -45,8 +45,6 @@ lazy val scalachessWrapper = project.in(file("."))
     scalacOptions := Seq(
       "-encoding",
       "utf-8",
-      "-rewrite",
-      "-source:3.4-migration",
       "-feature",
       "-language:postfixOps",
       "-Wunused:all",

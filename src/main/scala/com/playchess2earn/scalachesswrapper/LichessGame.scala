@@ -3,7 +3,7 @@ package com.playchess2earn.scalachesswrapper
 import chess.format.pgn.SanStr
 import chess.format.{Fen, FullFen}
 import chess.variant.Variant
-import chess.{Game, Ply, Replay, Role, Situation, Square}
+import chess.{Game, Ply, Role, Square}
 
 import java.util
 import java.util.{ArrayList, Optional, OptionalInt}
@@ -12,7 +12,7 @@ import scala.jdk.OptionConverters.*
 
 class LichessGame(private var game: Game):
   def getCurrentColor: String =
-    game.situation.color.name
+    game.position.color.name
 
   def getPly: Integer =
     game.ply.asInstanceOf[Integer]
@@ -33,14 +33,13 @@ class LichessGame(private var game: Game):
     game.startedAtPly.asInstanceOf[Integer]
 
   def getPieceAt(at: Integer): Optional[Character] =
-    game.situation
-      .board(at.asInstanceOf[Square])
+    game.position.board.pieceAt(at.asInstanceOf[Square])
       .map:
         _.forsyth.asInstanceOf[Character]
       .toJava
 
   def getLastMoveUci: Optional[String] =
-    game.situation.board.history.lastMove
+    game.history.lastMove
       .map:
         _.uci
       .toJava
@@ -52,7 +51,7 @@ class LichessGame(private var game: Game):
       .toJava
 
   def getLegalMoves: java.util.Map[String, java.util.List[String]] =
-    game.situation.moves.map:
+    game.position.moves.map:
       case (square, moves) =>
         square.key -> util.ArrayList(moves.map:
           _.dest.key
@@ -60,19 +59,19 @@ class LichessGame(private var game: Game):
     .asJava
 
   def getLegalMovesUci: java.util.List[String] =
-    util.ArrayList(game.situation.legalMoves
+    util.ArrayList(game.position.legalMoves
       .map:
         _.toUci.uci
       .asJava)
 
   def isMoveLegal(from: Integer, to: Integer): java.lang.Boolean =
-    game.situation.legalMoves.exists: m =>
+    game.position.legalMoves.exists: m =>
       m.orig == from.asInstanceOf[Square] && m.dest == to.asInstanceOf[Square]
 
   def isMoveLegal(from: Integer, to: Integer, promotion: Character): java.lang.Boolean =
     val role = Role.promotable(promotion)
 
-    game.situation.legalMoves.exists(move =>
+    game.position.legalMoves.exists(move =>
       move.orig == from.asInstanceOf[Square] && move.dest == to
         .asInstanceOf[Square] && ((move.promotion, role) match
         case (Some(promotion), Some(role)) => promotion.name == role.name
@@ -81,7 +80,7 @@ class LichessGame(private var game: Game):
 
   def move(from: Integer, to: Integer): Unit =
     game(from.asInstanceOf[Square], to.asInstanceOf[Square], None) match
-      case Right((game, move)) =>
+      case Right((game, _)) =>
         this.game = game
       case _ => throw RuntimeException("Unable to make move")
 
@@ -89,7 +88,7 @@ class LichessGame(private var game: Game):
     val role = Role.promotable(promotion)
 
     game(from.asInstanceOf[Square], to.asInstanceOf[Square], role) match
-      case Right((game, move)) =>
+      case Right((game, _)) =>
         this.game = game
       case _ => throw RuntimeException("Unable to make move")
 
@@ -97,47 +96,38 @@ class LichessGame(private var game: Game):
     val role = Role.forsyth(dropRole)
 
     game.drop(role.get, square.asInstanceOf[Square]) match
-      case Right((game, drop)) =>
+      case Right((game, _)) =>
         this.game = game
       case _ => throw RuntimeException("Unable to make drop")
 
   def undoMove(): Unit =
     if this.game.sans.nonEmpty then
       val sans = game.sans.init
-
-      val (initialGame, steps, _) = Replay.gameMoveWhileValid(
-        sans,
-        game.situation.variant.initialFen,
-        game.situation.variant
-      )
-
-      game = steps.lastOption
-        .map:
-          _._1
-        .getOrElse(initialGame)
+      val initialGame = Game(game.variant)
+      game = initialGame.forward(sans).getOrElse(initialGame)
 
   def isAutoDraw: java.lang.Boolean =
-    game.situation.autoDraw
+    game.position.autoDraw
 
   def isCheckMate: java.lang.Boolean =
-    game.situation.checkMate
+    game.position.checkMate
 
   def isEnd: java.lang.Boolean =
-    game.situation.end
+    game.position.end
 
   def isInsufficientMaterial: java.lang.Boolean =
-    game.situation.opponentHasInsufficientMaterial
+    game.position.opponentHasInsufficientMaterial
 
   def isStaleMate: java.lang.Boolean =
-    game.situation.staleMate
+    game.position.staleMate
 
   def winner: Optional[String] =
-    game.situation.winner.map:
+    game.position.winner.map:
       _.name
     .toJava
 
   def checkSquare: Optional[Integer] =
-    game.situation.checkSquare
+    game.position.checkSquare
       .map:
         _.asInstanceOf[Integer]
       .toJava
@@ -151,12 +141,8 @@ object LichessGame:
   def create(variant: String, fen: FullFen): LichessGame =
     val realVariant = Variant.byName(variant).getOrElse(throw RuntimeException("No such variant"))
 
-    val game = Fen
-      .read(realVariant, fen)
-      .map: s =>
-        s.color -> s.withVariant(realVariant).board
-      .map: (color, board) =>
-        Game(realVariant).copy(situation = Situation(board, color))
+    val game = Fen.readWithMoveNumber(realVariant, fen)
+      .map(_.toGame)
       .getOrElse(throw RuntimeException("Can't create game"))
 
     LichessGame(game)
@@ -170,7 +156,7 @@ object LichessGame:
     val realVariant = Variant.byName(variant).getOrElse(throw RuntimeException("No such variant"))
 
     val game = Game(
-      Situation(realVariant),
+      realVariant.initialPosition,
       sans.asScala.toVector.map:
         _.asInstanceOf[SanStr],
       None,
@@ -186,19 +172,12 @@ object LichessGame:
   ): LichessGame =
     val realVariant = Variant.byName(variant).getOrElse(throw RuntimeException("No such variant"))
 
-    val (game, steps, __) = Replay.gameMoveWhileValid(
-      sans.asScala.toVector.map:
-        _.asInstanceOf[SanStr],
-      realVariant.initialFen,
-      realVariant
-    )
+    val initialGame = Game(realVariant)
+    val finalGame = initialGame
+      .forward(sans.asScala.toVector.map(_.asInstanceOf[SanStr]))
+      .getOrElse(initialGame)
 
-    LichessGame(
-      steps.lastOption
-        .map:
-          _._1
-        .getOrElse(game)
-    )
+    LichessGame(finalGame)
 
   def getSquareFromKey(key: String): OptionalInt =
     Square
